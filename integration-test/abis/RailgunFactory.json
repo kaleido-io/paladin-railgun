@@ -1,0 +1,92 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_implementation",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "txId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "instance",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "config",
+          "type": "bytes"
+        }
+      ],
+      "name": "PaladinRegisterSmartContract_V0",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "transactionId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "string",
+          "name": "tokenName",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "internalType": "address",
+          "name": "initialOwner",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "deploy",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "implementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60a060405234801561000f575f80fd5b5060405161037b38038061037b83398101604081905261002e9161003f565b6001600160a01b031660805261006c565b5f6020828403121561004f575f80fd5b81516001600160a01b0381168114610065575f80fd5b9392505050565b6080516102f26100895f395f818160520152609201526102f25ff3fe608060405234801561000f575f80fd5b5060043610610034575f3560e01c806305c98c83146100385780635c60da1b1461004d575b5f80fd5b61004b6100463660046101b2565b610090565b005b6100747f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b03909116815260200160405180910390f35b7f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316867fd77f43af9eba6f7c0ea72f4bad6bc58c3bd49e2cb299e128c91293b7ebc17f43836040516100ea9190610270565b60405180910390a3505050505050565b634e487b7160e01b5f52604160045260245ffd5b5f82601f83011261011d575f80fd5b813567ffffffffffffffff80821115610138576101386100fa565b604051601f8301601f19908116603f01168101908282118183101715610160576101606100fa565b81604052838152866020858801011115610178575f80fd5b836020870160208301375f602085830101528094505050505092915050565b80356001600160a01b03811681146101ad575f80fd5b919050565b5f805f805f8060c087890312156101c7575f80fd5b86359550602087013567ffffffffffffffff808211156101e5575f80fd5b6101f18a838b0161010e565b96506040890135915080821115610206575f80fd5b6102128a838b0161010e565b95506060890135915080821115610227575f80fd5b6102338a838b0161010e565b945061024160808a01610197565b935060a0890135915080821115610256575f80fd5b5061026389828a0161010e565b9150509295509295509295565b5f602080835283518060208501525f5b8181101561029c57858101830151858201604001528201610280565b505f604082860101526040601f19601f830116850101925050509291505056fea2646970667358221220b663a1682a7cec10fc6f5536277265ed857441265cc765f12bf9e9b9e439294264736f6c63430008160033"
+}

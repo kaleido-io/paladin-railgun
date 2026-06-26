@@ -1,0 +1,26 @@
+{
+  "name": "solidity",
+  "version": "1.0.0",
+  "description": "Railgun Paladin domain Solidity: the RailgunFactory registration wrapper, compiled and tested with Hardhat, plus scripts to assemble the RailgunSmartWallet contract and joinsplit circuit artifacts for the Go integration tests.",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "clean": "hardhat clean",
+    "build-artifacts": "./build.sh",
+    "copy-artifacts": "./copy-railgun-artifacts.sh",
+    "extract-circuits": "./extract-circuits.sh"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "chai": "^4.2.0",
+    "ethers": "^6.13.1",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}
