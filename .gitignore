@@ -1,0 +1,21 @@
+# Local agent state
+.claude/
+
+# Node
+node_modules/
+
+# Hardhat build output (see also solidity/.gitignore)
+solidity/artifacts/
+solidity/cache/
+solidity/typechain-types/
+solidity/build/
+
+# Testbed logs / output
+integration-test/build/
+
+# Go test/coverage output
+*.test
+*.out
+
+# OS
+.DS_Store

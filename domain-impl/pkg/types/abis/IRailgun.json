@@ -1,0 +1,65 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IRailgun",
+  "sourceName": "contracts/domains/interfaces/IRailgun.sol",
+  "abi": [
+    {
+      "inputs": [
+        { "internalType": "string", "name": "to", "type": "string" },
+        { "internalType": "address", "name": "token", "type": "address" },
+        { "internalType": "uint256", "name": "value", "type": "uint256" }
+      ],
+      "name": "shield",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        { "internalType": "address", "name": "token", "type": "address" },
+        {
+          "components": [
+            { "internalType": "string", "name": "to", "type": "string" },
+            { "internalType": "uint256", "name": "value", "type": "uint256" },
+            { "internalType": "bytes", "name": "data", "type": "bytes" }
+          ],
+          "internalType": "struct IRailgun.TransferParam[]",
+          "name": "transfers",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        { "internalType": "address", "name": "to", "type": "address" },
+        { "internalType": "address", "name": "token", "type": "address" },
+        { "internalType": "uint256", "name": "value", "type": "uint256" }
+      ],
+      "name": "unshield",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        { "internalType": "string", "name": "account", "type": "string" }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+        { "internalType": "uint256", "name": "totalStates", "type": "uint256" },
+        { "internalType": "uint256", "name": "totalBalance", "type": "uint256" },
+        { "internalType": "bool", "name": "overflow", "type": "bool" }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
