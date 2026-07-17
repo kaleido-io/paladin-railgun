@@ -18,6 +18,7 @@ package fungible
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -66,11 +67,17 @@ func (h *transferHandler) Init(ctx context.Context, tx *types.ParsedTransaction,
 	p := tx.Params.(*types.TransferParams)
 	res := &pb.InitTransactionResponse{
 		RequiredVerifiers: []*pb.ResolveVerifierRequest{
-			mpkVerifierRequest(tx.Transaction.From, h.getAlgo()),
+			addressVerifierRequest(tx.Transaction.From, h.getAlgo()),
 		},
 	}
 	for _, t := range p.Transfers {
-		res.RequiredVerifiers = append(res.RequiredVerifiers, mpkVerifierRequest(t.To, h.getAlgo()))
+		// A recipient given as a literal "0zk" address is an external Railgun
+		// wallet — there is no Paladin party to resolve; we decode it directly in
+		// Assemble. Only Paladin-identity recipients need verifier resolution.
+		if railgunnote.IsRailgunAddress(t.To) {
+			continue
+		}
+		res.RequiredVerifiers = append(res.RequiredVerifiers, addressVerifierRequest(t.To, h.getAlgo()))
 	}
 	return res, nil
 }
@@ -78,7 +85,7 @@ func (h *transferHandler) Init(ctx context.Context, tx *types.ParsedTransaction,
 func (h *transferHandler) Assemble(ctx context.Context, tx *types.ParsedTransaction, req *pb.AssembleTransactionRequest) (*pb.AssembleTransactionResponse, error) {
 	p := tx.Params.(*types.TransferParams)
 
-	senderMpkHex, senderMpk, err := resolveMpk(req.ResolvedVerifiers, tx.Transaction.From, h.getAlgo())
+	senderMpkHex, senderMpk, senderViewingPub, err := resolveAddress(req.ResolvedVerifiers, tx.Transaction.From, h.getAlgo())
 	if err != nil {
 		return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, tx.Transaction.From)
 	}
@@ -106,7 +113,7 @@ func (h *transferHandler) Assemble(ctx context.Context, tx *types.ParsedTransact
 	var outNotes []*types.RailgunNote
 	var outStates []*pb.NewState
 	var payloadOutputs []PayloadOutput
-	addOutput := func(mpk *big.Int, ownerLookup string, value *pldtypes.HexUint256) error {
+	addOutput := func(mpk *big.Int, ownerViewingPub []byte, ownerLookup string, value *pldtypes.HexUint256) error {
 		leafIdx := nextLeaf + uint64(len(outNotes))
 		note := newNote(mpk, *p.Token, value, leafIdx)
 		state, err := makeNoteState(ctx, h.stateSchemas, h.name, note, ownerLookup)
@@ -119,22 +126,43 @@ func (h *transferHandler) Assemble(ctx context.Context, tx *types.ParsedTransact
 		}
 		outNotes = append(outNotes, note)
 		outStates = append(outStates, state)
-		payloadOutputs = append(payloadOutputs, PayloadOutput{NPK: npk.Int().Text(10), Value: value.Int().Text(10)})
+		payloadOutputs = append(payloadOutputs, PayloadOutput{
+			NPK:             npk.Int().Text(10),
+			Value:           value.Int().Text(10),
+			Random:          note.Random.Int().Text(10),
+			OwnerMPK:        railgunnote.EncodeField(mpk),
+			OwnerViewingPub: hex.EncodeToString(ownerViewingPub),
+		})
 		return nil
 	}
 
 	for _, t := range p.Transfers {
-		_, recMpk, err := resolveMpk(req.ResolvedVerifiers, t.To, h.getAlgo())
-		if err != nil {
-			return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, t.To)
+		var recMpk *big.Int
+		var recViewingPub []byte
+		// ownerLookup is the Paladin party that receives the note state; empty for
+		// an external "0zk" recipient (they recover the note from on-chain ciphertext).
+		ownerLookup := ""
+		if railgunnote.IsRailgunAddress(t.To) {
+			addr, err := railgunnote.DecodeRailgunAddress(t.To)
+			if err != nil {
+				return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, t.To)
+			}
+			recMpk, recViewingPub = addr.MasterPublicKey, addr.ViewingPublicKey
+		} else {
+			var err error
+			_, recMpk, recViewingPub, err = resolveAddress(req.ResolvedVerifiers, t.To, h.getAlgo())
+			if err != nil {
+				return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, t.To)
+			}
+			ownerLookup = t.To
 		}
-		if err := addOutput(recMpk, t.To, t.Value); err != nil {
+		if err := addOutput(recMpk, recViewingPub, ownerLookup, t.Value); err != nil {
 			return nil, i18n.NewError(ctx, msgs.MsgErrorPrepTxOutputs, err)
 		}
 	}
 	if change := new(big.Int).Sub(inputs.total, total); change.Sign() > 0 {
 		changeHex := pldtypes.HexUint256(*change)
-		if err := addOutput(senderMpk, tx.Transaction.From, &changeHex); err != nil {
+		if err := addOutput(senderMpk, senderViewingPub, tx.Transaction.From, &changeHex); err != nil {
 			return nil, i18n.NewError(ctx, msgs.MsgErrorPrepTxChange, err)
 		}
 	}
@@ -166,24 +194,30 @@ func (h *transferHandler) Prepare(ctx context.Context, tx *types.ParsedTransacti
 // Shared transact helpers (transfer + unshield)
 // -----------------------------------------------------------------------
 
-func mpkVerifierRequest(lookup, algo string) *pb.ResolveVerifierRequest {
+// addressVerifierRequest asks Paladin to resolve a party to their canonical
+// "0zk" Railgun address.
+func addressVerifierRequest(lookup, algo string) *pb.ResolveVerifierRequest {
 	return &pb.ResolveVerifierRequest{
 		Lookup:       lookup,
 		Algorithm:    algo,
-		VerifierType: railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY,
+		VerifierType: railgunsignerapi.RAILGUN_ADDRESS,
 	}
 }
 
-func resolveMpk(verifiers []*pb.ResolvedVerifier, lookup, algo string) (string, *big.Int, error) {
-	resolved := domain.FindVerifier(lookup, algo, railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY, verifiers)
+// resolveAddress finds a party's resolved "0zk" address and decodes it. It
+// returns the masterPublicKey both as the 0x-hex string used to key note owners
+// (identical to the RAILGUN_MASTER_PUBLIC_KEY verifier) and as a big.Int, plus
+// the owner's Ed25519 viewing public key (used to encrypt the note ciphertext).
+func resolveAddress(verifiers []*pb.ResolvedVerifier, lookup, algo string) (string, *big.Int, []byte, error) {
+	resolved := domain.FindVerifier(lookup, algo, railgunsignerapi.RAILGUN_ADDRESS, verifiers)
 	if resolved == nil {
-		return "", nil, fmt.Errorf("verifier not resolved: %s", lookup)
+		return "", nil, nil, fmt.Errorf("verifier not resolved: %s", lookup)
 	}
-	mpk, err := railgunnote.DecodeField(resolved.Verifier)
+	addr, err := railgunnote.DecodeRailgunAddress(resolved.Verifier)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-	return resolved.Verifier, mpk, nil
+	return railgunnote.EncodeField(addr.MasterPublicKey), addr.MasterPublicKey, addr.ViewingPublicKey, nil
 }
 
 func snarkAttestation(from, algo string, payload []byte) *pb.AttestationRequest {
@@ -230,12 +264,13 @@ func buildProvingPayload(tree *railgunnote.MerkleTree, token pldtypes.EthAddress
 	if unshield {
 		numCiphertext-- // ciphertext array excludes the unshield output
 	}
+	// Placeholder ciphertext entries (correct count for boundParamsHash). For
+	// transfers, Sign replaces each with the real note ciphertext encrypted to the
+	// recipient's viewing key. The Paladin tx-id is carried in annotationData (set
+	// in Sign) for on-chain event correlation.
 	cts := make([]railguntx.CommitmentCiphertext, numCiphertext)
 	for i := range cts {
 		cts[i] = placeholderCiphertext()
-	}
-	if len(cts) > 0 {
-		cts[0].BlindedSenderViewingKey = txID // carry the Paladin tx id for event correlation
 	}
 
 	unshieldType := railguntx.UnshieldNone
@@ -260,6 +295,7 @@ func buildProvingPayload(tree *railgunnote.MerkleTree, token pldtypes.EthAddress
 			CommitmentCiphertext: cts,
 		},
 		UnshieldValue: unshieldValue,
+		TxID:          txID,
 	}
 	return json.Marshal(payload)
 }

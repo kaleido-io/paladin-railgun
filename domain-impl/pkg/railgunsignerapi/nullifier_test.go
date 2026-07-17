@@ -32,7 +32,7 @@ import (
 // match the recorded note states.
 func TestComputeNullifierMatchesWitness(t *testing.T) {
 	skBytes, _ := hex.DecodeString("1111111111111111111111111111111111111111111111111111111111111111")
-	id, err := railgunnote.IdentityFromSpendingKey(skBytes)
+	id, err := railgunnote.IdentityFromSeed(skBytes)
 	require.NoError(t, err)
 
 	const leafIndex = uint64(7)
@@ -49,4 +49,25 @@ func TestComputeNullifierMatchesWitness(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 0, new(big.Int).SetBytes(got).Cmp(want), "persisted nullifier must equal witness nullifier")
+}
+
+// TestRailgunAddressDecodesToMasterPublicKey locks the verifier/handler contract:
+// the "0zk" address returned for the RAILGUN_ADDRESS verifier must decode to the
+// exact masterPublicKey returned for RAILGUN_MASTER_PUBLIC_KEY — the value the
+// domain keys note owners by. If these ever diverge, transfers to a resolved
+// recipient would credit the wrong owner.
+func TestRailgunAddressDecodesToMasterPublicKey(t *testing.T) {
+	skBytes, _ := hex.DecodeString("1111111111111111111111111111111111111111111111111111111111111111")
+
+	mpkHex, err := MasterPublicKey(skBytes)
+	require.NoError(t, err)
+
+	addr, err := RailgunAddress(skBytes, 1337)
+	require.NoError(t, err)
+
+	decoded, err := railgunnote.DecodeRailgunAddress(addr)
+	require.NoError(t, err)
+	require.Equal(t, mpkHex, railgunnote.EncodeField(decoded.MasterPublicKey),
+		"0zk address must decode to the master public key verifier")
+	require.Equal(t, &railgunnote.Chain{Type: 0, ID: 1337}, decoded.Chain)
 }

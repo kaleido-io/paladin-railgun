@@ -34,10 +34,10 @@ type noteForNullifier struct {
 //
 //	Poseidon(nullifyingKey, leafIndex)
 //
-// where nullifyingKey = Poseidon(viewingKey) is derived from the owner's
-// spending key (privateKey). Paladin invokes this via the note's NullifierSpec
-// with the owner's key, persisting the nullifier so it can be matched against
-// on-chain Nullified events.
+// where nullifyingKey = Poseidon(viewingKey), and the viewing key is derived
+// from the owner's seed (privateKey) independently of the spending key. Paladin
+// invokes this via the note's NullifierSpec with the owner's key, persisting the
+// nullifier so it can be matched against on-chain Nullified events.
 func ComputeNullifier(_ context.Context, privateKey []byte, payload []byte) ([]byte, error) {
 	var n noteForNullifier
 	if err := json.Unmarshal(payload, &n); err != nil {
@@ -48,7 +48,7 @@ func ComputeNullifier(_ context.Context, privateKey []byte, payload []byte) ([]b
 		return nil, err
 	}
 
-	id, err := railgunnote.IdentityFromSpendingKey(privateKey)
+	id, err := railgunnote.IdentityFromSeed(privateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +66,19 @@ func ComputeNullifier(_ context.Context, privateKey []byte, payload []byte) ([]b
 // MasterPublicKey returns the Railgun masterPublicKey (the domain verifier) for
 // a spending key, as a 0x-prefixed 32-byte hex string.
 func MasterPublicKey(privateKey []byte) (string, error) {
-	id, err := railgunnote.IdentityFromSpendingKey(privateKey)
+	id, err := railgunnote.IdentityFromSeed(privateKey)
 	if err != nil {
 		return "", err
 	}
 	return id.MasterPublicKeyHex()
+}
+
+// RailgunAddress returns the party's canonical "0zk" address for the given EVM
+// chain id, derived from the seed (spending + Ed25519 viewing keys).
+func RailgunAddress(privateKey []byte, chainID uint64) (string, error) {
+	id, err := railgunnote.IdentityFromSeed(privateKey)
+	if err != nil {
+		return "", err
+	}
+	return id.RailgunAddress(&railgunnote.Chain{Type: 0 /* EVM */, ID: chainID})
 }

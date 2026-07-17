@@ -24,9 +24,7 @@ import (
 	"github.com/LFDT-Paladin/paladin/common/go/pkg/i18n"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/msgs"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/railgun/railgunnote"
-	"github.com/LFDT-Paladin/paladin/domains/railgun/pkg/railgunsignerapi"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/pkg/types"
-	"github.com/LFDT-Paladin/paladin/toolkit/pkg/domain"
 	"github.com/LFDT-Paladin/paladin/toolkit/pkg/plugintk"
 	pb "github.com/LFDT-Paladin/paladin/toolkit/pkg/prototk"
 )
@@ -65,11 +63,7 @@ func (h *shieldHandler) Init(ctx context.Context, tx *types.ParsedTransaction, r
 	p := tx.Params.(*types.ShieldParams)
 	return &pb.InitTransactionResponse{
 		RequiredVerifiers: []*pb.ResolveVerifierRequest{
-			{
-				Lookup:       p.To,
-				Algorithm:    h.getAlgo(),
-				VerifierType: railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY,
-			},
+			addressVerifierRequest(p.To, h.getAlgo()),
 		},
 	}, nil
 }
@@ -77,11 +71,7 @@ func (h *shieldHandler) Init(ctx context.Context, tx *types.ParsedTransaction, r
 func (h *shieldHandler) Assemble(ctx context.Context, tx *types.ParsedTransaction, req *pb.AssembleTransactionRequest) (*pb.AssembleTransactionResponse, error) {
 	p := tx.Params.(*types.ShieldParams)
 
-	resolved := domain.FindVerifier(p.To, h.getAlgo(), railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY, req.ResolvedVerifiers)
-	if resolved == nil {
-		return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, p.To)
-	}
-	mpk, err := railgunnote.DecodeField(resolved.Verifier)
+	_, mpk, _, err := resolveAddress(req.ResolvedVerifiers, p.To, h.getAlgo())
 	if err != nil {
 		return nil, i18n.NewError(ctx, msgs.MsgErrorLoadOwnerPubKey, err)
 	}

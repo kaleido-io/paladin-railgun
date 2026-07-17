@@ -22,10 +22,8 @@ import (
 
 	"github.com/LFDT-Paladin/paladin/common/go/pkg/i18n"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/msgs"
-	"github.com/LFDT-Paladin/paladin/domains/railgun/pkg/railgunsignerapi"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/pkg/types"
 	"github.com/LFDT-Paladin/paladin/sdk/go/pkg/pldtypes"
-	"github.com/LFDT-Paladin/paladin/toolkit/pkg/domain"
 	"github.com/LFDT-Paladin/paladin/toolkit/pkg/plugintk"
 	pb "github.com/LFDT-Paladin/paladin/toolkit/pkg/prototk"
 )
@@ -61,11 +59,7 @@ func (h *balanceOfHandler) InitCall(ctx context.Context, tx *types.ParsedTransac
 	p := tx.Params.(*types.BalanceOfParam)
 	return &pb.InitCallResponse{
 		RequiredVerifiers: []*pb.ResolveVerifierRequest{
-			{
-				Lookup:       p.Account,
-				Algorithm:    h.getAlgo(),
-				VerifierType: railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY,
-			},
+			addressVerifierRequest(p.Account, h.getAlgo()),
 		},
 	}, nil
 }
@@ -73,12 +67,12 @@ func (h *balanceOfHandler) InitCall(ctx context.Context, tx *types.ParsedTransac
 func (h *balanceOfHandler) ExecCall(ctx context.Context, tx *types.ParsedTransaction, req *pb.ExecCallRequest) (*pb.ExecCallResponse, error) {
 	p := tx.Params.(*types.BalanceOfParam)
 
-	resolved := domain.FindVerifier(p.Account, h.getAlgo(), railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY, req.ResolvedVerifiers)
-	if resolved == nil {
+	accountMpkHex, _, _, err := resolveAddress(req.ResolvedVerifiers, p.Account, h.getAlgo())
+	if err != nil {
 		return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, p.Account)
 	}
 
-	count, total, overflow, err := getAccountBalance(ctx, h.callbacks, h.stateSchemas, req.StateQueryContext, resolved.Verifier)
+	count, total, overflow, err := getAccountBalance(ctx, h.callbacks, h.stateSchemas, req.StateQueryContext, accountMpkHex)
 	if err != nil {
 		return nil, i18n.NewError(ctx, msgs.MsgErrorQueryAvailNotes, err)
 	}

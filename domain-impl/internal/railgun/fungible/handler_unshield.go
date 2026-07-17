@@ -62,7 +62,7 @@ func (h *unshieldHandler) ValidateParams(ctx context.Context, config *types.Doma
 func (h *unshieldHandler) Init(ctx context.Context, tx *types.ParsedTransaction, req *pb.InitTransactionRequest) (*pb.InitTransactionResponse, error) {
 	return &pb.InitTransactionResponse{
 		RequiredVerifiers: []*pb.ResolveVerifierRequest{
-			mpkVerifierRequest(tx.Transaction.From, h.getAlgo()),
+			addressVerifierRequest(tx.Transaction.From, h.getAlgo()),
 		},
 	}, nil
 }
@@ -70,7 +70,7 @@ func (h *unshieldHandler) Init(ctx context.Context, tx *types.ParsedTransaction,
 func (h *unshieldHandler) Assemble(ctx context.Context, tx *types.ParsedTransaction, req *pb.AssembleTransactionRequest) (*pb.AssembleTransactionResponse, error) {
 	p := tx.Params.(*types.UnshieldParams)
 
-	senderMpkHex, senderMpk, err := resolveMpk(req.ResolvedVerifiers, tx.Transaction.From, h.getAlgo())
+	senderMpkHex, senderMpk, _, err := resolveAddress(req.ResolvedVerifiers, tx.Transaction.From, h.getAlgo())
 	if err != nil {
 		return nil, i18n.NewError(ctx, msgs.MsgErrorResolveVerifier, tx.Transaction.From)
 	}

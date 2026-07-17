@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/LFDT-Paladin/paladin/config v0.0.0-00010101000000-000000000000 // indirect
 	github.com/LFDT-Paladin/paladin/domains/zeto v0.0.0-00010101000000-000000000000 // indirect

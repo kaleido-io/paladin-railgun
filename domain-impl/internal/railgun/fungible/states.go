@@ -45,14 +45,17 @@ func makeNote(stateData string) (*types.RailgunNote, error) {
 	return note, err
 }
 
-// newRandom generates a fresh in-field random scalar for a note.
+// newRandom generates a fresh 16-byte (128-bit) note random. Railgun notes use a
+// 16-byte random (it is one field of the on-chain note ciphertext, random‖value),
+// so keeping it 16 bytes makes commitments and ciphertext interoperable with real
+// Railgun wallets. 16 bytes is always < the scalar field, so npk = Poseidon(mpk,
+// random) needs no reduction.
 func newRandom() *pldtypes.HexUint256 {
-	b := make([]byte, 32)
+	b := make([]byte, 16)
 	if _, err := cryptorand.Read(b); err != nil {
 		panic(err)
 	}
-	v := new(big.Int).Mod(new(big.Int).SetBytes(b), railgunnote.SnarkScalarField)
-	return (*pldtypes.HexUint256)(v)
+	return (*pldtypes.HexUint256)(new(big.Int).SetBytes(b))
 }
 
 // makeNoteState builds a prototk.NewState for a note, attaching the nullifier
@@ -69,20 +72,27 @@ func makeNoteState(ctx context.Context, schemas *StateSchemas, domainName string
 		return nil, err
 	}
 	hashStr := hexUint256To32ByteHex(hash)
-	return &pb.NewState{
-		Id:               &hashStr,
-		SchemaId:         schemas.NoteSchema.Id,
-		StateDataJson:    string(noteJSON),
-		DistributionList: []string{ownerLookup},
-		NullifierSpecs: []*pb.NullifierSpec{
+	ns := &pb.NewState{
+		Id:            &hashStr,
+		SchemaId:      schemas.NoteSchema.Id,
+		StateDataJson: string(noteJSON),
+	}
+	// An external "0zk" recipient (empty ownerLookup) is not a Paladin party: the
+	// note is not distributed to anyone and carries no NullifierSpec (we cannot
+	// compute a foreign owner's nullifier). Such a recipient recovers and spends
+	// the note from the on-chain ciphertext with their own wallet.
+	if ownerLookup != "" {
+		ns.DistributionList = []string{ownerLookup}
+		ns.NullifierSpecs = []*pb.NullifierSpec{
 			{
 				Party:        ownerLookup,
 				Algorithm:    railgunsignerapi.AlgoDomainRailgunSnarkBJJ(domainName),
 				VerifierType: railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY,
 				PayloadType:  railgunsignerapi.PAYLOAD_DOMAIN_RAILGUN_NULLIFIER,
 			},
-		},
-	}, nil
+		}
+	}
+	return ns, nil
 }
 
 // newNote constructs a note owned by ownerMpk with the given token/value and a

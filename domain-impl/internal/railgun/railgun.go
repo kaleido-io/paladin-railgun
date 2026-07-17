@@ -325,19 +325,28 @@ func (r *Railgun) HandleEventBatch(ctx context.Context, req *prototk.HandleEvent
 // Signer interface
 // -----------------------------------------------------------------------
 
-// GetVerifier returns a party's Railgun address — its masterPublicKey — derived
-// from the spending key. Senders resolve recipients to this value to form note
-// public keys.
+// GetVerifier returns a party's verifier for the requested type, derived from
+// the party's seed (spending and Ed25519 viewing keys):
+//   - RAILGUN_MASTER_PUBLIC_KEY: the masterPublicKey field element (0x hex) that
+//     notes are keyed by and that the SNARK-signing/nullifier attestations use.
+//   - RAILGUN_ADDRESS: the canonical "0zk" address (chain-scoped to the domain's
+//     chain) that senders resolve recipients/accounts to.
 func (r *Railgun) GetVerifier(ctx context.Context, req *prototk.GetVerifierRequest) (*prototk.GetVerifierResponse, error) {
 	ctx = log.WithComponent(ctx, "railgun")
-	if req.VerifierType != railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY {
+	var verifier string
+	var err error
+	switch req.VerifierType {
+	case railgunsignerapi.RAILGUN_MASTER_PUBLIC_KEY:
+		verifier, err = railgunsignerapi.MasterPublicKey(req.PrivateKey)
+	case railgunsignerapi.RAILGUN_ADDRESS:
+		verifier, err = railgunsignerapi.RailgunAddress(req.PrivateKey, uint64(r.chainID))
+	default:
 		return nil, i18n.NewError(ctx, msgs.MsgErrorGetVerifier, "unsupported verifier type "+req.VerifierType)
 	}
-	mpk, err := railgunsignerapi.MasterPublicKey(req.PrivateKey)
 	if err != nil {
 		return nil, i18n.NewError(ctx, msgs.MsgErrorGetVerifier, err)
 	}
-	return &prototk.GetVerifierResponse{Verifier: mpk}, nil
+	return &prototk.GetVerifierResponse{Verifier: verifier}, nil
 }
 
 func (r *Railgun) Sign(ctx context.Context, req *prototk.SignRequest) (*prototk.SignResponse, error) {

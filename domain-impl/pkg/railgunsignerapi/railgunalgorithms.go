@@ -38,10 +38,17 @@ const PAYLOAD_DOMAIN_RAILGUN_NULLIFIER = "domain:railgun:nullifier"
 // BabyJubJub public key prefixed with 0x. Shared with Zeto.
 const IDEN3_PUBKEY_BABYJUBJUB_COMPRESSED_0X = "iden3_pubkey_babyjubjub_compressed_0x"
 
-// RAILGUN_MASTER_PUBLIC_KEY is the verifier type for a Railgun address: the
-// masterPublicKey field element (0x-prefixed 32-byte hex). A sender resolves a
-// recipient to this value and forms the note public key as Poseidon(mpk, random).
+// RAILGUN_MASTER_PUBLIC_KEY is the verifier type for a party's masterPublicKey
+// field element (0x-prefixed 32-byte hex). It is the low-level owner key: notes
+// are keyed by it (note public key = Poseidon(mpk, random)) and it is the
+// verifier type used for the SNARK-signing and nullifier attestations.
 const RAILGUN_MASTER_PUBLIC_KEY = "railgun_master_public_key"
+
+// RAILGUN_ADDRESS is the verifier type for a party's canonical "0zk" Railgun
+// address (bech32m of version ‖ masterPublicKey ‖ networkID ‖ viewingPublicKey).
+// It is the recipient-facing address a sender resolves a recipient/account to;
+// the domain decodes it back to the masterPublicKey to form note public keys.
+const RAILGUN_ADDRESS = "railgun_address"
 
 // CircuitType enumerates the available Railgun circuit categories.
 type CircuitType string

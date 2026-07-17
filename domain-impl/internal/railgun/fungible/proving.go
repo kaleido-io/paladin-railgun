@@ -18,10 +18,13 @@ package fungible
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 
+	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/railgun/railguncrypto"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/railgun/railgunnote"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/railgun/railgunprover"
 	"github.com/LFDT-Paladin/paladin/domains/railgun/internal/railgun/railguntx"
@@ -35,10 +38,16 @@ type PayloadInput struct {
 	PathElements []string `json:"pathElements"`
 }
 
-// PayloadOutput is one output note (npk + value) in a transact proving payload.
+// PayloadOutput is one output note in a transact proving payload. Random,
+// OwnerMPK, and OwnerViewingPub let Sign build the on-chain note ciphertext
+// (encrypting random/value/token to the owner's Ed25519 viewing key). They are
+// empty for outputs that need no ciphertext (e.g. an unshield's change note).
 type PayloadOutput struct {
-	NPK   string `json:"npk"`
-	Value string `json:"value"`
+	NPK             string `json:"npk"`
+	Value           string `json:"value"`
+	Random          string `json:"random,omitempty"`          // note's 16-byte random (decimal)
+	OwnerMPK        string `json:"ownerMpk,omitempty"`        // owner master public key (hex)
+	OwnerViewingPub string `json:"ownerViewingPub,omitempty"` // owner Ed25519 viewing pubkey (hex)
 }
 
 // ProvingPayload is the SNARK attestation payload built by a handler's Assemble
@@ -55,13 +64,16 @@ type ProvingPayload struct {
 	// UnshieldValue is set (non-empty) for unshields; the trailing output is the
 	// unshield note.
 	UnshieldValue string `json:"unshieldValue,omitempty"`
+	// TxID is the Paladin transaction id, re-homed into each commitment
+	// ciphertext's annotationData for on-chain event correlation.
+	TxID string `json:"txId,omitempty"`
 }
 
 // GenerateTransactionProof builds the joinsplit witness from the payload and the
 // owner's private key, generates the Groth16 proof, and returns the fully
 // assembled on-chain Transaction (serialised). Invoked from the domain's Sign.
 func GenerateTransactionProof(ctx context.Context, prover *railgunprover.Prover, privateKey []byte, payload []byte) ([]byte, error) {
-	id, err := railgunnote.IdentityFromSpendingKey(privateKey)
+	id, err := railgunnote.IdentityFromSeed(privateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +90,16 @@ func GenerateTransactionProof(ctx context.Context, prover *railgunprover.Prover,
 	if err != nil {
 		return nil, fmt.Errorf("invalid merkleRoot: %w", err)
 	}
+
+	// Build the real note ciphertext for each output whose owner viewing key is
+	// known (transfers), so an external Railgun wallet can recover the note by
+	// scanning on-chain. This must happen BEFORE BoundParamsHash, as the
+	// ciphertext is part of BoundParams and is bound into the proof. Outputs with
+	// no viewing key (e.g. an unshield change note) keep their placeholder.
+	if err := encryptOutputCiphertext(id, &p, token); err != nil {
+		return nil, err
+	}
+
 	bph, err := railguntx.BoundParamsHash(ctx, &p.BoundParams)
 	if err != nil {
 		return nil, err
@@ -158,6 +180,93 @@ func GenerateTransactionProof(ctx context.Context, prover *railgunprover.Prover,
 	}
 
 	return json.Marshal(tx)
+}
+
+// encryptOutputCiphertext builds the real on-chain note ciphertext for each
+// output with a known owner viewing key, encrypting (random, value, token) to
+// that owner's Ed25519 viewing key so an external Railgun wallet can recover the
+// note by scanning. The Paladin tx-id is carried in annotationData for event
+// correlation. Outputs without a viewing key keep their placeholder ciphertext
+// but still receive the tx-id annotation.
+func encryptOutputCiphertext(id *railgunnote.Identity, p *ProvingPayload, tokenID *big.Int) error {
+	cts := p.BoundParams.CommitmentCiphertext
+	if len(cts) == 0 {
+		return nil
+	}
+	senderMPK, err := id.MasterPublicKey()
+	if err != nil {
+		return err
+	}
+	senderViewingSeed := id.ViewingKey[:]
+	tokenHash := tokenID.FillBytes(make([]byte, 32))
+
+	for i := range cts {
+		if i >= len(p.Outputs) {
+			break
+		}
+		out := p.Outputs[i]
+		if out.OwnerViewingPub == "" {
+			cts[i].AnnotationData = annotationTxID(p.TxID)
+			continue
+		}
+		recViewingPub, err := hex.DecodeString(strings.TrimPrefix(out.OwnerViewingPub, "0x"))
+		if err != nil {
+			return fmt.Errorf("output %d viewing pubkey: %w", i, err)
+		}
+		recMPK, err := railgunnote.DecodeField(out.OwnerMPK)
+		if err != nil {
+			return fmt.Errorf("output %d owner mpk: %w", i, err)
+		}
+		random, err := railgunnote.DecodeField(out.Random)
+		if err != nil {
+			return fmt.Errorf("output %d random: %w", i, err)
+		}
+		value, err := railgunnote.DecodeField(out.Value)
+		if err != nil {
+			return fmt.Errorf("output %d value: %w", i, err)
+		}
+		if value.BitLen() > 128 {
+			return fmt.Errorf("output %d value exceeds 128 bits", i)
+		}
+		ec, err := railguncrypto.EncryptTransactNote(senderViewingSeed, recViewingPub, railguncrypto.TransactNote{
+			ReceiverMPK: recMPK,
+			SenderMPK:   senderMPK,
+			TokenHash:   tokenHash,
+			Random:      random.FillBytes(make([]byte, 16)),
+			Value:       value.FillBytes(make([]byte, 16)),
+		})
+		if err != nil {
+			return fmt.Errorf("output %d ciphertext: %w", i, err)
+		}
+		cts[i] = railguntx.CommitmentCiphertext{
+			Ciphertext: [4]string{
+				hex0x(ec.Ciphertext[0]), hex0x(ec.Ciphertext[1]),
+				hex0x(ec.Ciphertext[2]), hex0x(ec.Ciphertext[3]),
+			},
+			BlindedSenderViewingKey:   hex0x(ec.BlindedSenderViewingKey),
+			BlindedReceiverViewingKey: hex0x(ec.BlindedReceiverViewingKey),
+			AnnotationData:            annotationTxID(p.TxID),
+			Memo:                      hex0xOrEmpty(ec.Memo),
+		}
+	}
+	return nil
+}
+
+func hex0x(b []byte) string { return "0x" + hex.EncodeToString(b) }
+
+func hex0xOrEmpty(b []byte) string {
+	if len(b) == 0 {
+		return "0x"
+	}
+	return hex0x(b)
+}
+
+// annotationTxID returns the tx-id for the annotationData field, or "0x" if unset.
+func annotationTxID(txID string) string {
+	if txID == "" {
+		return "0x"
+	}
+	return txID
 }
 
 func fieldsToDec(vs []*big.Int) []string {
