@@ -3,11 +3,13 @@ module github.com/LFDT-Paladin/paladin/domains/railgun
 go 1.24.4
 
 require (
+	filippo.io/edwards25519 v1.2.0
 	github.com/LFDT-Paladin/paladin/common/go v0.0.0-00010101000000-000000000000
 	github.com/LFDT-Paladin/paladin/domains/zeto v0.0.0-00010101000000-000000000000
 	github.com/LFDT-Paladin/paladin/sdk/go v0.0.0-20250828150332-fbc1c1bc663b
 	github.com/LFDT-Paladin/paladin/toolkit v0.0.0-00010101000000-000000000000
 	github.com/LFDT-Paladin/smt v0.2.0
+	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/hyperledger/firefly-signer v1.1.22
 	github.com/iden3/go-iden3-crypto v0.0.17
 	github.com/iden3/go-rapidsnark/prover v0.0.15
@@ -25,7 +27,6 @@ require (
 	github.com/aidarkhanov/nanoid v1.0.8 // indirect
 	github.com/btcsuite/btcd v0.24.2 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
-	github.com/btcsuite/btcd/btcutil v1.1.6 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dchest/blake512 v1.0.0 // indirect

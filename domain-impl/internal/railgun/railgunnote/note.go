@@ -49,17 +49,17 @@ type Identity struct {
 	ViewingKey  [32]byte
 }
 
-func beInt(b []byte) *big.Int { return new(big.Int).SetBytes(b) }
-
 // SpendingPublicKey returns the BabyJubJub spending public-key point (x, y).
 func (id *Identity) SpendingPublicKey() (x, y *big.Int) {
 	pub := id.SpendingKey.Public()
 	return pub.X, pub.Y
 }
 
-// NullifyingKey = Poseidon(viewingKey).
+// NullifyingKey = Poseidon(viewingKey). The viewing key is a 32-byte Ed25519
+// seed, reduced into the scalar field before hashing (Poseidon inputs must be
+// field elements; the reference reduces internally).
 func (id *Identity) NullifyingKey() (*big.Int, error) {
-	return poseidon.Hash([]*big.Int{beInt(id.ViewingKey[:])})
+	return poseidon.Hash([]*big.Int{id.ViewingKeyScalar()})
 }
 
 // MasterPublicKey = Poseidon(spendPub.x, spendPub.y, nullifyingKey).

@@ -41,7 +41,7 @@ func TestGenerateTransactionProofFromPayload(t *testing.T) {
 	}
 
 	skBytes, _ := hex.DecodeString("1111111111111111111111111111111111111111111111111111111111111111")
-	id, err := railgunnote.IdentityFromSpendingKey(skBytes)
+	id, err := railgunnote.IdentityFromSeed(skBytes)
 	require.NoError(t, err)
 	mpk, err := id.MasterPublicKey()
 	require.NoError(t, err)

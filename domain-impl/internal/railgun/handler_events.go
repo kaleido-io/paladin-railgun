@@ -32,11 +32,13 @@ import (
 )
 
 // Railgun's on-chain events carry no Paladin transaction id, so the domain
-// embeds it in an (unvalidated) ciphertext field of the shield/transact
-// calldata: shieldKey for shield, the first commitment ciphertext's
-// blindedSenderViewingKey for transact. Each batch is processed in two passes —
-// first building a tx-hash → tx-id map from Shield/Transact events, then
-// processing every event (including Nullified/Unshield, which share the tx hash).
+// embeds it in an (unvalidated) field of the shield/transact calldata: shieldKey
+// for shield, the first commitment ciphertext's annotationData for transact (the
+// ciphertext itself is now real, encrypted to the recipient; annotationData is
+// sender metadata that an external recipient never decrypts, so it is safe to
+// carry the tx-id there). Each batch is processed in two passes — first building
+// a tx-hash → tx-id map from Shield/Transact events, then processing every event
+// (including Nullified/Unshield, which share the tx hash).
 
 // txCorrelation builds the on-chain-tx-hash → Paladin-tx-id map for a batch.
 func txCorrelation(ctx context.Context, events []*prototk.OnChainEvent, shieldSig, transactSig string) map[string]string {
@@ -51,7 +53,7 @@ func txCorrelation(ctx context.Context, events []*prototk.OnChainEvent, shieldSi
 		case transactSig:
 			var transact TransactEvent
 			if json.Unmarshal([]byte(ev.DataJson), &transact) == nil && len(transact.Ciphertext) > 0 {
-				byHash[ev.Location.TransactionHash] = transact.Ciphertext[0].BlindedSenderViewingKey.String()
+				byHash[ev.Location.TransactionHash] = transact.Ciphertext[0].AnnotationData.String()
 			}
 		}
 	}
