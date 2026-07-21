@@ -13,6 +13,15 @@ solidity/build/
 # Testbed logs / output
 integration-test/build/
 
+# Third-party Railgun contract artifacts — NOT distributed with this repo.
+# User-generated from a local checkout of github.com/Railgun-Privacy/contract via
+# solidity/copy-railgun-artifacts.sh (see README). RailgunFactory.json is built
+# from this repo's own Apache-2.0 RailgunFactory.sol and IS committed.
+integration-test/abis/RailgunSmartWallet.json
+integration-test/abis/PoseidonT3.json
+integration-test/abis/PoseidonT4.json
+integration-test/abis/TestERC20.json
+
 # Go test/coverage output
 *.test
 *.out

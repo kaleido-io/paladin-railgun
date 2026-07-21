@@ -4,10 +4,19 @@ A from-scratch Go implementation of Railgun's note cryptography and Groth16
 proving, producing **on-chain-valid** `shield` / `transact` / `unshield` calldata
 for the real `RailgunSmartWallet` contract.
 
-Every layer is validated against the Railgun reference implementation
-(`~/workspace.zkp/railgun/contract` TS helpers + circuits) and against **snarkJS**
-using the real circuit verification keys — so the proofs these packages produce
-are accepted by the on-chain verifier.
+Every layer is validated against the Railgun reference implementation (the TS
+helpers + circuits in the third-party `Railgun-Privacy/contract` and
+`Railgun-Privacy/circuits-v2` repos) and against **snarkJS** using the real
+circuit verification keys — so the proofs these packages produce are accepted by
+the on-chain verifier.
+
+> **Third-party materials.** The circuits and the Railgun reference implementation
+> used for validation are licensed separately from this project (not under its
+> Apache-2.0 license) and are **not** distributed here. Obtain and build them
+> yourself, subject to their licenses. The committed `testdata/*.json` files are
+> numeric known-answer vectors generated from that reference to validate this
+> independent Go implementation; they contain no Railgun source. See the
+> [root README](../../../README.md#third-party-dependencies-and-licensing).
 
 ## Packages
 
@@ -41,15 +50,20 @@ which keeps proving keys at `zkeys/<NNxMM>.zkey` and witness wasm at
 with snarkjs). `solidity/extract-circuits.sh` produces the canonical
 `<dir>/<NNxMM>/{wasm,zkey,vkey.json}` layout the prover loads:
 
+The commands below assume you have cloned + built `Railgun-Privacy/circuits-v2`
+as a sibling of the `paladin-railgun` repo (`../circuits-v2`); pass a different
+path as an argument to override.
+
 ```bash
 # one-shot: assemble circuits + run all proving tests (verifies each proof in snarkJS)
-scripts/run-proving-tests.sh [path-to-circuits-v2-repo]   # default ~/workspace.zkp/railgun/circuits-v2
+scripts/run-proving-tests.sh [path-to-circuits-v2-repo]   # default ../circuits-v2
 
-# or manually
-solidity/extract-circuits.sh /tmp/circuits 01x02   # from ~/workspace.zkp/railgun/circuits-v2
+# or manually (CIRCUITS_V2 = your own checkout of Railgun-Privacy/circuits-v2)
+CIRCUITS_V2=../../circuits-v2
+solidity/extract-circuits.sh /tmp/circuits 01x02 --repo "${CIRCUITS_V2}"
 RAILGUN_CIRCUITS_DIR=/tmp/circuits \
-SNARKJS=~/workspace.zkp/railgun/circuits-v2/node_modules/.bin/snarkjs \
-GOFLAGS=-mod=mod GOMODCACHE=~/workspace.paladin/paladin/.gomodcache \
+SNARKJS="${CIRCUITS_V2}/node_modules/.bin/snarkjs" \
+GOFLAGS=-mod=mod \
 go test ./internal/railgun/railguntx/ -run TestBuildTransact -v
 ```
 

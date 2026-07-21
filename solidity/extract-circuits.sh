@@ -12,13 +12,20 @@
 #
 # Usage: extract-circuits.sh <out-dir> [NNxMM ...] [--repo CIRCUITS_V2_REPO]
 #   circuits default to those the domain/tests use: 01x01 01x02
-#   CIRCUITS_V2_REPO defaults to ~/workspace.zkp/railgun/circuits-v2
+#   CIRCUITS_V2_REPO defaults to ../circuits-v2 (a sibling of the paladin-railgun
+#   repo). The Railgun circuits-v2 repo is a third-party dependency that you must
+#   obtain and build yourself under its own license (see the repo README); this
+#   project neither distributes nor is licensed to distribute those artifacts.
 
 set -euo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Parent of the paladin-railgun repo, where third-party repos are cloned as peers.
+PEER_ROOT="$(cd "${HERE}/../.." && pwd)"
+
 OUT="${1:?usage: extract-circuits.sh <out-dir> [NNxMM...]}"
 shift || true
-REPO="${HOME}/workspace.zkp/railgun/circuits-v2"
+REPO="${PEER_ROOT}/circuits-v2"
 CIRCUITS=()
 while [ $# -gt 0 ]; do
   case "$1" in
